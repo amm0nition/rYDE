@@ -144,13 +144,16 @@ class App(ctk.CTk):
         if not path: return
         try:
             with open(path, 'r', encoding='utf-8') as f: data = yaml.safe_load(f)
+
+            if not isinstance(data, dict):
+                messagebox.showerror("Error", "Invalid YAML file: Does not contain a valid structure."); return
+            
             if data.get('Header', {}).get('Type') != 'MOB_DB':
-                messagebox.showerror("Error", "This does not appear to be a valid MOB_DB YAML file.")
-                return
+                messagebox.showerror("Error", "This does not appear to be a valid MOB_DB YAML file."); return
             
             self.file_path = path
-            self.header_data = data['Header']
-            self.mob_data = data['Body']
+            self.header_data = data.get('Header', {})
+            self.mob_data = data.get('Body', [])
             self.populate_mob_list()
             
             self.btn_save.configure(state="normal")
@@ -163,7 +166,8 @@ class App(ctk.CTk):
     def populate_mob_list(self):
         self.sort_by_column = "ID"
         self.sort_reverse_order = False
-        self.mob_data.sort(key=lambda mob: int(mob.get('Id', 0)), reverse=False)
+        if self.mob_data:
+            self.mob_data.sort(key=lambda mob: int(mob.get('Id', 0)), reverse=False)
         self.search_var.set("")
         
         self.mob_list_tree.heading("ID", text="ID ▼")
@@ -263,7 +267,6 @@ class App(ctk.CTk):
         new_mob['AegisName'] = f"MOB_{new_mob['Id']}"
         self.mob_data.append(new_mob)
         self.sort_treeview_column(self.sort_by_column)
-        self.filter_mob_list()
         for i, item in enumerate(self.mob_list_tree.get_children()):
              if self.mob_data[int(item)].get('Id') == new_mob['Id']:
                  self.mob_list_tree.selection_set(item)
@@ -287,4 +290,20 @@ class App(ctk.CTk):
     def _get_full_data_dict(self): return {'Header': self.header_data, 'Body': self.mob_data}
 
     def save_file(self):
-        if not self.file_path: self.save
+        if not self.file_path: self.save_file_as(); return
+        try:
+            with open(self.file_path, 'w', encoding='utf-8') as f:
+                yaml.dump(self._get_full_data_dict(), f, Dumper=NoAliasDumper, sort_keys=False, indent=2)
+            messagebox.showinfo("Success", f"File saved successfully to {self.file_path}")
+        except Exception as e: messagebox.showerror("Save Error", str(e))
+    
+    def save_file_as(self):
+        if not (path := filedialog.asksaveasfilename(defaultextension=".yml", filetypes=(("YAML files", "*.yml"), ("All files", "*.*")), initialfile="mob_db.yml")): return
+        self.file_path = path
+        self.save_file()
+        self.title(f"rAthena Mob DB YML Editor - {os.path.basename(path)}")
+
+
+if __name__ == "__main__":
+    app = App()
+    app.mainloop()
